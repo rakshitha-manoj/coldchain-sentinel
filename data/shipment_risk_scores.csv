@@ -1,0 +1,21 @@
+run_id,total_breach_seconds,total_excursion_area_c_sec,max_excursion_severity_c,total_dropout_seconds,risk_score,risk_category,estimated_potency_remaining_pct,data_confidence_pct,scenario_label
+1,0,0.0,0.0,0,0.0,Safe,100.0,100.0,Clean Trip
+2,0,0.0,0.0,0,0.0,Safe,100.0,100.0,Clean Trip
+3,0,0.0,0.0,0,0.0,Safe,100.0,100.0,Clean Trip
+4,0,0.0,0.0,0,0.0,Safe,100.0,100.0,Clean Trip
+5,0,0.0,0.0,0,0.0,Safe,100.0,100.0,Clean Trip
+6,0,0.0,0.0,0,0.0,Safe,100.0,100.0,Clean Trip
+7,0,0.0,0.0,0,0.0,Safe,100.0,100.0,Clean Trip
+8,0,0.0,0.0,0,0.0,Safe,100.0,100.0,Clean Trip
+9,9,27.0,3.18,0,32.7,Moderate Risk,90.6,100.0,Brief Excursion
+10,9,27.45,3.18,0,32.7,Moderate Risk,90.4,100.0,Brief Excursion
+11,9,27.45,3.15,0,32.5,Moderate Risk,90.4,100.0,Brief Excursion
+12,9,27.45,3.15,0,32.5,Moderate Risk,90.4,100.0,Brief Excursion
+13,49,222.46,4.69,0,83.8,High Risk,22.1,100.0,Sustained Excursion
+14,49,220.5,4.69,0,83.8,High Risk,22.8,100.0,Sustained Excursion
+15,49,220.01,4.69,0,83.8,High Risk,23.0,100.0,Sustained Excursion
+16,49,220.5,4.69,0,83.8,High Risk,22.8,100.0,Sustained Excursion
+17,0,0.0,0.0,14,0.0,Safe,100.0,91.5,Sensor Dropout
+18,0,0.0,0.0,14,0.0,Safe,100.0,91.5,Sensor Dropout
+19,0,0.0,0.0,14,0.0,Safe,100.0,91.5,Sensor Dropout
+20,0,0.0,0.0,14,0.0,Safe,100.0,91.5,Sensor Dropout

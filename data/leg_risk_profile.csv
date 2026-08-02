@@ -1,0 +1,5 @@
+leg,total_ticks_observed,total_breach_ticks,breach_rate_pct,avg_excursion_severity_c,max_excursion_severity_c,total_dropout_ticks,dropout_rate_pct
+highway_transit,1200,196,16.33,0.74,4.69,0,0.0
+customs_hub_hold,900,36,4.0,0.12,3.18,56,6.22
+cold_storage_loading,600,0,0.0,0.0,0.0,0,0.0
+last_mile_delivery,600,0,0.0,0.0,0.0,0,0.0
