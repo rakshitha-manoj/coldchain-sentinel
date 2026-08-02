@@ -229,7 +229,7 @@ elif page == "All Shipments":
         return f"background-color: {color}20; color: {color}; font-weight: 600;"
 
     st.dataframe(
-        filtered.style.applymap(color_category, subset=["risk_category"]),
+        filtered.style.map(color_category, subset=["risk_category"]),
         use_container_width=True,
         hide_index=True
     )
