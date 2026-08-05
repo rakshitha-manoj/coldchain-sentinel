@@ -64,7 +64,7 @@ with st.sidebar:
     st.divider()
     page = st.radio(
         "Navigate",
-        ["Overview", "Shipment Explorer", "Route Risk Analysis", "All Shipments"],
+        ["Overview", "Simulate New Shipment", "Shipment Explorer", "Route Risk Analysis", "All Shipments"],
         label_visibility="collapsed"
     )
     st.divider()
@@ -124,7 +124,137 @@ if page == "Overview":
     )
 
 # ================= PAGE: Shipment Explorer =================
-elif page == "Shipment Explorer":
+elif page == "Simulate New Shipment":
+    st.markdown("### Configure and run a new shipment simulation")
+    st.caption("This generates fresh telemetry and runs it through the same preprocessing, "
+               "route-risk weighting, and scoring model live — not a lookup from saved data.")
+
+    LEGS = [
+        {"name": "cold_storage_loading", "duration": 30, "temp": 4.0, "hum": 45.0},
+        {"name": "highway_transit",      "duration": 60, "temp": 5.0, "hum": 50.0},
+        {"name": "customs_hub_hold",     "duration": 45, "temp": 6.0, "hum": 55.0},
+        {"name": "last_mile_delivery",   "duration": 30, "temp": 5.0, "hum": 48.0},
+    ]
+    POTENCY_LOSS_RATE = 0.35
+
+    if "sim_log" not in st.session_state:
+        st.session_state.sim_log = []
+
+    col_a, col_b, col_c = st.columns(3)
+    with col_a:
+        scenario = st.selectbox(
+            "Scenario",
+            ["Clean Trip", "Brief Excursion", "Sustained Excursion", "Sensor Dropout", "Custom"]
+        )
+    with col_b:
+        affected_leg = st.selectbox(
+            "Leg affected (if any)",
+            [l["name"] for l in LEGS], index=1
+        )
+    with col_c:
+        seed = st.number_input("Simulation seed", min_value=1, max_value=99999, value=101)
+
+    if scenario == "Custom":
+        c1, c2 = st.columns(2)
+        with c1:
+            custom_severity = st.slider("Excursion severity (°C over safe limit)", 0.0, 10.0, 3.0, 0.5)
+        with c2:
+            custom_duration_pct = st.slider("Excursion duration (% of leg)", 0, 100, 30, 5)
+
+    run_btn = st.button("▶ Run Simulation", type="primary")
+
+    if run_btn:
+        import random as _random
+        rng = _random.Random(seed)
+
+        rows = []
+        tick = 0
+        for leg in LEGS:
+            is_affected = leg["name"] == affected_leg
+            for t in range(leg["duration"]):
+                if scenario == "Sensor Dropout" and is_affected and 10 < t < 25:
+                    tick += 1
+                    continue
+
+                base = leg["temp"]
+                if scenario == "Brief Excursion" and is_affected and 15 < t < 25:
+                    base = SAFE_MAX + 3.0
+                elif scenario == "Sustained Excursion" and is_affected and t > 10:
+                    base = SAFE_MAX + 4.5
+                elif scenario == "Custom" and is_affected and t < leg["duration"] * (custom_duration_pct / 100):
+                    base = SAFE_MAX + custom_severity
+
+                temp = base + rng.uniform(-0.2, 0.2)
+                hum = leg["hum"] + rng.uniform(-3.0, 3.0)
+                status = "BREACH" if (temp < SAFE_MIN or temp > SAFE_MAX) else "OK"
+                rows.append({"elapsed_sec": tick, "leg": leg["name"], "temp_c": temp,
+                             "humidity_pct": hum, "status": status, "data_missing": False})
+                tick += 1
+
+        sim_df = pd.DataFrame(rows)
+
+        breach_sec = int((sim_df["status"] == "BREACH").sum())
+        excursion = (sim_df["temp_c"] - SAFE_MAX).clip(lower=0) + (SAFE_MIN - sim_df["temp_c"]).clip(lower=0)
+        excursion_area = float(excursion.sum())
+        max_severity = float(excursion.max())
+
+        leg_weight_map = leg_risk.set_index("leg")["breach_rate_pct"] / 100.0
+        anomaly_mult = 1.0 + (1.0 - leg_weight_map.get(affected_leg, 0.0)) if breach_sec > 0 else 0.0
+        weighted_score = breach_sec * anomaly_mult
+
+        duration_score = min(100, (breach_sec / 165) * 100 * 3)
+        severity_score = min(100, max_severity * 15)
+        leg_score = min(100, weighted_score * 2)
+        risk_score = round(0.4 * duration_score + 0.4 * severity_score + 0.2 * leg_score, 1)
+
+        if breach_sec == 0:
+            risk_cat = "Safe"
+        elif risk_score < 25:
+            risk_cat = "Low Risk"
+        elif risk_score < 55:
+            risk_cat = "Moderate Risk"
+        else:
+            risk_cat = "High Risk"
+
+        potency = round(max(0.0, 100.0 - excursion_area * POTENCY_LOSS_RATE), 1)
+
+        st.session_state.sim_log.insert(0, {
+            "scenario": scenario, "affected_leg": affected_leg if scenario != "Clean Trip" else "-",
+            "seed": seed, "risk_score": risk_score, "risk_category": risk_cat,
+            "potency_remaining_pct": potency, "breach_seconds": breach_sec
+        })
+
+        badge_color = CATEGORY_COLORS.get(risk_cat, "#999")
+        st.markdown(
+            f'<span class="badge" style="background-color:{badge_color}">{risk_cat}</span>',
+            unsafe_allow_html=True
+        )
+        st.write("")
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Risk Score", f"{risk_score:.1f} / 100")
+        m2.metric("Est. Potency Remaining", f"{potency:.1f}%")
+        m3.metric("Breach Duration", f"{breach_sec}s")
+        m4.metric("Max Excursion Severity", f"{max_severity:.2f}°C")
+
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=sim_df["elapsed_sec"], y=sim_df["temp_c"],
+                                  mode="lines", name="Temperature (°C)", line=dict(color="#1565c0", width=2)))
+        fig.add_hrect(y0=SAFE_MIN, y1=SAFE_MAX, fillcolor="green", opacity=0.06, line_width=0)
+        fig.add_hline(y=SAFE_MAX, line_dash="dash", line_color="#c62828", annotation_text="Safe max (8°C)")
+        fig.add_hline(y=SAFE_MIN, line_dash="dash", line_color="#c62828", annotation_text="Safe min (2°C)")
+        breach_pts = sim_df[sim_df["status"] == "BREACH"]
+        if len(breach_pts) > 0:
+            fig.add_trace(go.Scatter(x=breach_pts["elapsed_sec"], y=breach_pts["temp_c"],
+                                      mode="markers", name="Breach", marker=dict(color="#c62828", size=7)))
+        fig.update_layout(title="Live simulated shipment temperature", height=420,
+                           xaxis_title="Elapsed time (s)", yaxis_title="Temperature (°C)")
+        st.plotly_chart(fig, use_container_width=True)
+
+    if st.session_state.sim_log:
+        st.markdown("#### Simulation session log")
+        st.dataframe(pd.DataFrame(st.session_state.sim_log), use_container_width=True, hide_index=True)
+
+
     st.markdown("### Inspect a single shipment run")
 
     run_ids = sorted(risk_scores["run_id"].unique())
